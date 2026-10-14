@@ -31,6 +31,9 @@ import { requireRole } from './middleware/rbac.js';
 const app = express();
 const PgSession = pgSimple(session);
 
+// Trust proxy header from Render / cloud reverse proxies for correct IP detection and secure cookies
+app.set('trust proxy', 1);
+
 // SEC-05: global abuse-resistance layer (contract §5: 300 req/min/IP) on top
 // of the stricter login limiter.
 const globalLimiter = rateLimit({
@@ -47,13 +50,41 @@ const globalLimiter = rateLimit({
 app.use(requestId);
 app.use(globalLimiter);
 app.use(helmet());
-app.use(cors({ origin: env.WEB_ORIGIN, credentials: true }));
+
+// CORS configuration supporting single origin, list of origins, and Vercel preview domains
+const allowedOrigins = env.WEB_ORIGIN.split(',').map((o) => o.trim()).filter(Boolean);
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      const isAllowed =
+        allowedOrigins.includes(origin) ||
+        allowedOrigins.includes('*') ||
+        (allowedOrigins.some((o) => o.includes('.vercel.app')) && origin.endsWith('.vercel.app'));
+
+      if (isAllowed) {
+        return callback(null, true);
+      }
+      return callback(new Error(`CORS blocked for origin: ${origin}`));
+    },
+    credentials: true,
+  })
+);
 app.use(express.json());
+
+const isProduction = env.NODE_ENV === 'production';
+const sameSiteMode = env.COOKIE_SAME_SITE || (isProduction ? 'none' : 'lax');
+const isSecureCookie = isProduction || sameSiteMode === 'none';
 
 app.use(
   session({
     store: new PgSession({
-      conString: env.DATABASE_URL,
+      conObject: {
+        connectionString: env.DATABASE_URL,
+        ...(isProduction && !env.DATABASE_URL.includes('localhost')
+          ? { ssl: { rejectUnauthorized: false } }
+          : {}),
+      },
       tableName: 'sessions',
       createTableIfMissing: true,
     }),
@@ -64,8 +95,8 @@ app.use(
     rolling: true,
     cookie: {
       httpOnly: true,
-      secure: env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: isSecureCookie,
+      sameSite: sameSiteMode,
       maxAge: env.SESSION_MAX_AGE_DAYS * 24 * 60 * 60 * 1000,
     },
   })

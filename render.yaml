@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: pay365-api
+    runtime: node
+    rootDir: backend
+    plan: free
+    buildCommand: npm install && npm run build && npm run prisma:deploy
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: pay365-postgres
+          property: connectionString
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: SESSION_MAX_AGE_DAYS
+        value: "7"
+      - key: WEB_ORIGIN
+        sync: false # Set to your Vercel app domain (e.g., https://your-project.vercel.app)
+      - key: COOKIE_SAME_SITE
+        value: "none"
+
+databases:
+  - name: pay365-postgres
+    databaseName: pay365
+    user: pay365
+    plan: free

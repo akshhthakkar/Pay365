@@ -10,7 +10,8 @@ const schema = z
       .default('postgresql://pay365:pay365@localhost:5433/pay365'),
     SESSION_SECRET: z.string().min(32).default('dev-only-session-secret-change-me-in-prod'),
     SESSION_MAX_AGE_DAYS: z.coerce.number().default(7),
-    WEB_ORIGIN: z.string().url().default('http://localhost:5173'),
+    WEB_ORIGIN: z.string().default('http://localhost:5173'),
+    COOKIE_SAME_SITE: z.enum(['lax', 'none', 'strict']).optional(),
 
     // Email / SMTP Settings (TASK-018)
     SMTP_HOST: z.string().optional(),

@@ -1,6 +1,7 @@
 import { execSync } from 'child_process';
 
 export function killExistingServer(port = 4000) {
+  if (process.env.NODE_ENV === 'production') return;
   const targetPort = Number(port) || 4000;
   const currentPid = process.pid.toString();
 
